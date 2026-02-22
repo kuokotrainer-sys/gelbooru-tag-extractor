@@ -58,15 +58,27 @@ async function loadPost() {
     }
 
     const apiURL = `https://gelbooru.com/index.php?page=dapi&s=post&q=index&id=${id}&json=1`;
-    const proxyURL = "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(apiURL); // Proxy alternativo
+    const proxyURL = "https://corsproxy.io/?" + encodeURIComponent(apiURL); // Proxy más estable
 
     status.innerText = "Cargando...";
 
     try {
         const response = await fetch(proxyURL);
-        if (!response.ok) throw new Error(`Error en proxy: ${response.status} - ${response.statusText}`);
+        console.log("Status del proxy:", response.status);
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.log("Respuesta no OK:", errorText);
+            throw new Error(`Proxy falló con status ${response.status}: ${errorText.substring(0, 100)}`);
+        }
 
-        const data = await response.json();
+        const text = await response.text();
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            console.log("Respuesta no JSON:", text);
+            throw new Error("Respuesta no es JSON válido: " + text.substring(0, 100));
+        }
 
         if (!data || !data.post || data.post.length === 0) {
             throw new Error("Post no encontrado (puede no existir o estar borrado)");
