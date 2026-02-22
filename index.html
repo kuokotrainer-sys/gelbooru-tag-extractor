@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Gelbooru Tag Extractor</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #111; color: #eee; }
+        .container { margin-top: 20px; max-width: 800px; }
+        textarea { width: 100%; height: 350px; background: #222; color: #eee; border: 1px solid #444; padding: 10px; font-size: 14px; }
+        button { margin: 15px 10px 0 0; padding: 10px 24px; cursor: pointer; background: #555; color: white; border: none; border-radius: 4px; font-size: 16px; }
+        button:hover { background: #777; }
+        input { padding: 10px; width: 500px; max-width: 90%; background: #222; color: #eee; border: 1px solid #444; margin: 8px 0; display: block; }
+        #status { color: #ffcc00; font-weight: bold; margin-top: 10px; }
+        p.note { color: #aaa; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <h2>Gelbooru Tag Extractor</h2>
+    <p class="note">Pega la URL del post → extrae tags → edita si quieres → guarda TXT (tags) + HTML (redirect al post)</p>
+
+    <input type="text" id="url" placeholder="Pega la URL completa del post (ej: https://gelbooru.com/index.php?page=post&s=view&id=13488633)">
+    <input type="text" id="filename" placeholder="Nombre base (ej: 01boru → genera 01boru.txt y 01boru.html)">
+
+    <button onclick="loadPost()">Cargar Tags</button>
+
+    <div id="container" class="container" style="display:none;">
+        <textarea id="tagsArea" placeholder="Tags aparecerán aquí editables, separados por comas..."></textarea>
+        <br>
+        <button onclick="saveFiles()">Guardar TXT + HTML</button>
+    </div>
+
+    <p id="status"></p>
+
+    <script>
+    async function loadPost() {
+        const url = document.getElementById("url").value.trim();
+        const baseName = document.getElementById("filename").value.trim();
+        const status = document.getElementById("status");
+
+        if (!url || !baseName) {
+            alert("Llena la URL y el nombre base por favor");
+            return;
+        }
+
+        if (!url.includes("gelbooru.com") || !url.includes("id=")) {
+            alert("Asegúrate que sea una URL válida de Gelbooru con &id=NUMERO");
+            return;
+        }
+
+        status.innerText = "Cargando tags...";
+
+        const proxyURL = "https://corsproxy.io/?" + encodeURIComponent(url);
+
+        try {
+            const response = await fetch(proxyURL);
+            if (!response.ok) throw new Error(`Error al cargar: ${response.status}`);
+
+            const htmlText = await response.text();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlText, "text/html");
+
+            const tagElements = doc.querySelectorAll(".tag-type-general a, .tag-type-character a, .tag-type-copyright a, .tag-type-artist a, .tag-type-metadata a, .search-tag a, .tag a");
+            let tagsSet = new Set();
+            tagElements.forEach(el => {
+                let tag = el.textContent.trim();
+                if (tag) {
+                    tag = tag.replace(/_/g, " ");
+                    tagsSet.add(tag);
+                }
+            });
+
+            const tagsText = Array.from(tagsSet).join(", ");
+            document.getElementById("tagsArea").value = tagsText || "No se encontraron tags visibles.";
+
+            document.getElementById("container").style.display = "block";
+
+            window.currentUrl = url;
+            window.currentBaseName = baseName;
+
+            status.innerText = "¡Tags cargados! Edita si quieres y guarda.";
+        } catch (err) {
+            console.error(err);
+            status.innerText = "Error: " + err.message;
+            alert("Error: " + err.message + "\nPrueba otra URL o verifica consola (F12).");
+        }
+    }
+
+    function saveFiles() {
+        const tags = document.getElementById("tagsArea").value.trim();
+        const originalUrl = window.currentUrl;
+        const baseName = window.currentBaseName;
+
+        if (!originalUrl || !baseName) {
+            alert("Primero carga un post");
+            return;
+        }
+
+        const txtBlob = new Blob([tags], { type: "text/plain" });
+        const txtLink = document.createElement("a");
+        txtLink.href = URL.createObjectURL(txtBlob);
+        txtLink.download = `${baseName}.txt`;
+        txtLink.click();
+
+        const htmlContent = `<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Redirect a Gelbooru Post</title>
+    <meta http-equiv="refresh" content="0; url=${originalUrl}">
+</head>
+<body>
+    <p>Redirigiendo al post de Gelbooru... Si no carga, <a href="${originalUrl}">haz clic aquí</a>.</p>
+    <script>window.location.href = "${originalUrl}";</script>
+</body>
+</html>`;
+
+        const htmlBlob = new Blob([htmlContent], { type: "text/html" });
+        const htmlLink = document.createElement("a");
+        htmlLink.href = URL.createObjectURL(htmlBlob);
+        htmlLink.download = `${baseName}.html`;
+        htmlLink.click();
+    }
+    </script>
+</body>
+</html>
