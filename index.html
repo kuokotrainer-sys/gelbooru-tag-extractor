@@ -17,7 +17,7 @@ input { padding: 10px; width: 500px; max-width: 90%; background: #222; color: #e
 </head>
 <body>
 <h2>Gelbooru Tag Extractor (lee tags desde la página HTML)</h2>
-<p>Esto evita problemas de API key. Solo pega la URL del post y listo.</p>
+<p>Pega la URL del post → carga imagen y tags → edita tags si quieres → guarda TXT + HTML</p>
 
 <input type="text" id="url" placeholder="Pega la URL completa del post (ej: https://gelbooru.com/index.php?page=post&s=view&id=13488633)">
 <br>
@@ -29,12 +29,13 @@ input { padding: 10px; width: 500px; max-width: 90%; background: #222; color: #e
   <div class="left">
     <img id="postImage" src="" alt="Imagen del post">
     <br>
-    <button onclick="saveImage()">Guardar Imagen</button>
+    <button onclick="saveImage()">Guardar solo Imagen</button>
+    <button onclick="saveAll()">Guardar HTML + TXT</button>
   </div>
   <div class="right">
     <textarea id="tagsArea" placeholder="Tags aparecerán aquí (editables)..."></textarea>
     <br>
-    <button onclick="saveTags()">Guardar TXT con tags</button>
+    <button onclick="saveTags()">Guardar solo TXT</button>
   </div>
 </div>
 
@@ -58,7 +59,6 @@ async function loadPost() {
 
     status.innerText = "Cargando... (puede tardar unos segundos)";
 
-    // Proxy para evitar CORS (GitHub Pages → gelbooru.com)
     const proxyURL = "https://corsproxy.io/?" + encodeURIComponent(url);
 
     try {
@@ -66,15 +66,12 @@ async function loadPost() {
         if (!response.ok) throw new Error(`Error al cargar página: ${response.status}`);
 
         const htmlText = await response.text();
-
-        // Parsear HTML
         const parser = new DOMParser();
         const doc = parser.parseFromString(htmlText, "text/html");
 
-        // Encontrar imagen principal (la grande)
         let imageURL = doc.querySelector("#image")?.src ||
-                       doc.querySelector("a[href*='file_only']")?.href ||
-                       doc.querySelector("meta[property='og:image']")?.content;
+                       doc.querySelector("meta[property='og:image']")?.content ||
+                       doc.querySelector("a[href*='file_only']")?.href;
 
         if (imageURL && imageURL.startsWith('//')) imageURL = 'https:' + imageURL;
 
@@ -82,34 +79,26 @@ async function loadPost() {
 
         document.getElementById("postImage").src = imageURL;
 
-        // Extraer tags (de las listas de tags)
-        const tagElements = doc.querySelectorAll(".tag-type-general a, .tag-type-character a, .tag-type-copyright a, .tag-type-artist a, .tag-type-metadata a");
-        let tags = [];
+        const tagElements = doc.querySelectorAll(".tag-type-* a, .search-tag, .tag a");
+        let tags = new Set();
         tagElements.forEach(el => {
             let tag = el.textContent.trim().replace(/_/g, " ");
-            if (tag && !tags.includes(tag)) tags.push(tag);
+            if (tag) tags.add(tag);
         });
 
-        // Si no hay tags de clases específicas, fallback a todos los .search-tag
-        if (tags.length === 0) {
-            doc.querySelectorAll(".search-tag, .tag a").forEach(el => {
-                let tag = el.textContent.trim().replace(/_/g, " ");
-                if (tag && !tags.includes(tag)) tags.push(tag);
-            });
-        }
-
-        const tagsText = tags.join(", ");
-        document.getElementById("tagsArea").value = tagsText || "No se encontraron tags (intenta otra URL)";
+        const tagsText = Array.from(tags).join(", ");
+        document.getElementById("tagsArea").value = tagsText || "No se encontraron tags";
 
         document.getElementById("container").style.display = "flex";
         window.baseNameGlobal = baseName;
         window.imageURLGlobal = imageURL;
+        window.currentTags = tagsText;
 
-        status.innerText = "¡Listo! Imagen y tags cargados. Edita los tags si quieres.";
+        status.innerText = "¡Listo! Puedes editar tags y guardar HTML + TXT";
     } catch (err) {
         console.error(err);
         status.innerText = "Error: " + err.message;
-        alert("Error al procesar: " + err.message + "\nPrueba con proxy diferente o abre F12 > Console para detalles.");
+        alert("Error: " + err.message);
     }
 }
 
@@ -118,17 +107,11 @@ async function saveImage() {
     const imageURL = window.imageURLGlobal;
     const baseName = window.baseNameGlobal;
     let ext = imageURL.split('.').pop().split('?')[0] || 'jpg';
-
-    try {
-        const response = await fetch(imageURL);
-        const blob = await response.blob();
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `${baseName}.${ext}`;
-        link.click();
-    } catch (e) {
-        alert("Error guardando imagen: " + e.message);
-    }
+    const blob = await (await fetch(imageURL)).blob();
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${baseName}.${ext}`;
+    link.click();
 }
 
 function saveTags() {
@@ -140,6 +123,44 @@ function saveTags() {
     link.href = URL.createObjectURL(blob);
     link.download = `${baseName}_tags.txt`;
     link.click();
+}
+
+function saveAll() {
+    if (!window.baseNameGlobal) return;
+    const baseName = window.baseNameGlobal;
+    const tags = document.getElementById("tagsArea").value || "";
+    const imageURL = window.imageURLGlobal || "";
+
+    // Contenido del HTML simple
+    const htmlContent = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>${baseName} - Gelbooru Post</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #111; color: #eee; text-align: center; padding: 20px; }
+  img { max-width: 90%; border: 2px solid #444; border-radius: 8px; margin: 20px 0; }
+  .tags { background: #222; padding: 15px; border-radius: 8px; max-width: 800px; margin: 0 auto; text-align: left; }
+</style>
+</head>
+<body>
+<h1>${baseName}</h1>
+<img src="${imageURL}" alt="Imagen de Gelbooru">
+<div class="tags">
+  <h2>Tags:</h2>
+  <p>${tags.replace(/, /g, ",<br>")}</p>
+</div>
+</body>
+</html>`;
+
+    const htmlBlob = new Blob([htmlContent], {type: "text/html"});
+    const htmlLink = document.createElement("a");
+    htmlLink.href = URL.createObjectURL(htmlBlob);
+    htmlLink.download = `${baseName}.html`;
+    htmlLink.click();
+
+    // Guardar también el TXT
+    saveTags();
 }
 </script>
 </body>
