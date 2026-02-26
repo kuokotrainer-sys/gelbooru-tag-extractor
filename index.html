@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Booru Tag Extractor (Gelbooru + Danbooru)</title>
+    <title>Gelbooru & Danbooru Tag Extractor</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background: #111; color: #eee; }
         .container { margin-top: 20px; max-width: 800px; }
@@ -15,16 +15,16 @@
     </style>
 </head>
 <body>
-    <h2>Booru Tag Extractor (Gelbooru + Danbooru)</h2>
-    <p class="note">Pega URL de Gelbooru o Danbooru → extrae tags separados por coma → edita si quieres → guarda en .txt</p>
+    <h2>Gelbooru & Danbooru Tag Extractor</h2>
+    <p class="note">Pega URL de Gelbooru o Danbooru → extrae tags separados por coma → edita → guarda .txt</p>
 
-    <input type="text" id="url" placeholder="URL del post (Gelbooru o Danbooru, ej: https://danbooru.donmai.us/posts/123456 o Gelbooru id=...)">
-    <input type="text" id="filename" placeholder="Nombre base (ej: 01dan → genera 01dan.txt)">
+    <input type="text" id="url" placeholder="URL del post (Gelbooru o Danbooru)">
+    <input type="text" id="filename" placeholder="Nombre base (ej: 01dan)">
 
     <button onclick="loadPost()">Cargar Tags</button>
 
     <div id="container" class="container" style="display:none;">
-        <textarea id="tagsArea" placeholder="Los tags aparecerán aquí separados por coma... puedes editarlos"></textarea>
+        <textarea id="tagsArea" placeholder="Tags separados por coma... edita si quieres"></textarea>
         <br>
         <button onclick="saveTags()">Guardar TXT</button>
     </div>
@@ -38,7 +38,7 @@
         const status = document.getElementById("status");
 
         if (!url || !baseName) {
-            alert("Completa la URL y el nombre base por favor");
+            alert("Completa la URL y el nombre base");
             return;
         }
 
@@ -50,26 +50,23 @@
             return;
         }
 
-        status.innerText = `Cargando tags desde ${site}...`;
+        status.innerText = `Cargando desde ${site}...`;
 
         const proxyURL = "https://corsproxy.io/?" + encodeURIComponent(url);
 
         try {
             const response = await fetch(proxyURL);
-            if (!response.ok) {
-                throw new Error(`No se pudo cargar (${response.status})`);
-            }
+            if (!response.ok) throw new Error(`Error ${response.status}`);
 
             const html = await response.text();
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, "text/html");
 
-            // Selectores comunes para ambos sitios
+            // Selectores que funcionan en Gelbooru y Danbooru
             const tags = new Set();
             doc.querySelectorAll(
                 ".tag-type-general a, .tag-type-character a, .tag-type-copyright a, " +
-                ".tag-type-artist a, .tag-type-metadata a, .tag-type-general.tag a, " +
-                ".search-tag a, .tag a"
+                ".tag-type-artist a, .tag-type-metadata a, .search-tag a, .tag a"
             ).forEach(a => {
                 let t = a.textContent.trim();
                 if (t) {
@@ -82,14 +79,13 @@
             document.getElementById("tagsArea").value = tagsText || `(No se encontraron tags en ${site})`;
 
             document.getElementById("container").style.display = "block";
-
             window.currentBaseName = baseName;
 
-            status.innerText = `¡Tags de ${site} cargados! Edita si quieres y guarda.`;
+            status.innerText = `¡Tags de ${site} cargados! Edita y guarda.`;
         } catch (err) {
             console.error(err);
             status.innerText = "Error: " + err.message;
-            alert("Error: " + err.message + "\nRevisa consola (F12) si persiste.");
+            alert("Error: " + err.message + "\nRevisa consola (F12)");
         }
     }
 
