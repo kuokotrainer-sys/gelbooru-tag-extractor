@@ -2,106 +2,137 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Gelbooru & Danbooru Tag Extractor</title>
+    <title>Booru Tag Extractor - Multi Posts</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background: #111; color: #eee; }
-        .container { margin-top: 20px; max-width: 800px; }
-        textarea { width: 100%; height: 400px; background: #222; color: #eee; border: 1px solid #444; padding: 12px; font-size: 15px; line-height: 1.5; resize: vertical; }
-        button { margin: 15px 10px 0 0; padding: 12px 28px; cursor: pointer; background: #555; color: white; border: none; border-radius: 4px; font-size: 16px; }
+        .container { margin-top: 20px; max-width: 900px; }
+        textarea { width: 100%; height: 450px; background: #222; color: #eee; border: 1px solid #444; padding: 12px; font-size: 15px; line-height: 1.6; resize: vertical; }
+        button { margin: 12px 10px 0 0; padding: 10px 22px; cursor: pointer; background: #555; color: white; border: none; border-radius: 4px; font-size: 15px; }
         button:hover { background: #777; }
-        input { padding: 12px; width: 500px; max-width: 90%; background: #222; color: #eee; border: 1px solid #444; margin: 10px 0; display: block; font-size: 15px; }
+        .url-group { display: flex; align-items: center; margin: 10px 0; gap: 10px; flex-wrap: wrap; }
+        .url-group input[type="text"] { flex: 1; padding: 10px; background: #222; color: #eee; border: 1px solid #444; font-size: 14px; min-width: 300px; }
+        .url-group input[type="text"]:nth-child(2) { width: 140px; flex: none; }
         #status { color: #ffcc00; font-weight: bold; margin-top: 15px; font-size: 16px; }
         p.note { color: #aaa; font-size: 14px; margin-bottom: 15px; }
     </style>
 </head>
 <body>
-    <h2>Gelbooru & Danbooru Tag Extractor</h2>
-    <p class="note">Pega URL de Gelbooru o Danbooru → extrae tags separados por coma → edita → guarda .txt</p>
+    <h2>Booru Tag Extractor (Gelbooru + Danbooru)</h2>
+    <p class="note">Pega varias URLs (Gelbooru o Danbooru) + nombre base → tags separados por ///// → guarda en un solo .txt</p>
 
-    <input type="text" id="url" placeholder="URL del post (Gelbooru o Danbooru)">
-    <input type="text" id="filename" placeholder="Nombre base (ej: 01dan)">
+    <div id="urlsContainer">
+        <div class="url-group">
+            <input type="text" class="url-input" placeholder="URL del post (Gelbooru o Danbooru)">
+            <input type="text" class="name-input" placeholder="Nombre base (ej: 01)">
+            <button onclick="removeRow(this)">-</button>
+        </div>
+    </div>
 
-    <button onclick="loadPost()">Cargar Tags</button>
+    <button onclick="addRow()">+ Agregar otra URL</button>
+    <button onclick="loadAllPosts()">Cargar Todos los Tags</button>
 
-    <div id="container" class="container" style="display:none;">
-        <textarea id="tagsArea" placeholder="Tags separados por coma... edita si quieres"></textarea>
+    <div id="container" style="display:none; margin-top: 25px;">
+        <textarea id="tagsArea" placeholder="Los tags de cada post aparecerán aquí separados por /////..."></textarea>
         <br>
-        <button onclick="saveTags()">Guardar TXT</button>
+        <button onclick="saveAllTags()">Guardar TXT (todos juntos)</button>
     </div>
 
     <p id="status"></p>
 
     <script>
-    async function loadPost() {
-        const url = document.getElementById("url").value.trim();
-        const baseName = document.getElementById("filename").value.trim();
-        const status = document.getElementById("status");
+    let rowCount = 1;
 
-        if (!url || !baseName) {
-            alert("Completa la URL y el nombre base");
+    function addRow() {
+        if (rowCount >= 10) {
+            alert("Máximo 10 posts por carga");
             return;
         }
-
-        let site = "Desconocido";
-        if (url.includes("gelbooru.com")) site = "Gelbooru";
-        else if (url.includes("danbooru.donmai.us")) site = "Danbooru";
-        else {
-            alert("La URL debe ser de Gelbooru o Danbooru");
-            return;
-        }
-
-        status.innerText = `Cargando desde ${site}...`;
-
-        const proxyURL = "https://corsproxy.io/?" + encodeURIComponent(url);
-
-        try {
-            const response = await fetch(proxyURL);
-            if (!response.ok) throw new Error(`Error ${response.status}`);
-
-            const html = await response.text();
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, "text/html");
-
-            // Selectores que funcionan en Gelbooru y Danbooru
-            const tags = new Set();
-            doc.querySelectorAll(
-                ".tag-type-general a, .tag-type-character a, .tag-type-copyright a, " +
-                ".tag-type-artist a, .tag-type-metadata a, .search-tag a, .tag a"
-            ).forEach(a => {
-                let t = a.textContent.trim();
-                if (t) {
-                    t = t.replace(/_/g, " ");
-                    tags.add(t);
-                }
-            });
-
-            const tagsText = Array.from(tags).join(", ");
-            document.getElementById("tagsArea").value = tagsText || `(No se encontraron tags en ${site})`;
-
-            document.getElementById("container").style.display = "block";
-            window.currentBaseName = baseName;
-
-            status.innerText = `¡Tags de ${site} cargados! Edita y guarda.`;
-        } catch (err) {
-            console.error(err);
-            status.innerText = "Error: " + err.message;
-            alert("Error: " + err.message + "\nRevisa consola (F12)");
-        }
+        const container = document.getElementById("urlsContainer");
+        const div = document.createElement("div");
+        div.className = "url-group";
+        div.innerHTML = `
+            <input type="text" class="url-input" placeholder="URL del post">
+            <input type="text" class="name-input" placeholder="Nombre base (ej: 02)">
+            <button onclick="removeRow(this)">-</button>
+        `;
+        container.appendChild(div);
+        rowCount++;
     }
 
-    function saveTags() {
-        const tags = document.getElementById("tagsArea").value.trim();
-        const baseName = window.currentBaseName;
+    function removeRow(btn) {
+        if (rowCount <= 1) return;
+        btn.parentElement.remove();
+        rowCount--;
+    }
 
-        if (!tags || !baseName) {
-            alert("Carga un post primero");
+    async function loadAllPosts() {
+        const status = document.getElementById("status");
+        status.innerText = "Procesando posts... (puede tardar)";
+
+        const urlGroups = document.querySelectorAll(".url-group");
+        let allResults = [];
+
+        for (const group of urlGroups) {
+            const url = group.querySelector(".url-input").value.trim();
+            const baseName = group.querySelector(".name-input").value.trim();
+
+            if (!url) continue;
+
+            let site = "Desconocido";
+            if (url.includes("gelbooru.com")) site = "Gelbooru";
+            else if (url.includes("danbooru.donmai.us")) site = "Danbooru";
+            else {
+                allResults.push(`[URL inválida] ${url} (solo Gelbooru o Danbooru)\n/////`);
+                continue;
+            }
+
+            const proxyURL = "https://corsproxy.io/?" + encodeURIComponent(url);
+
+            try {
+                const response = await fetch(proxyURL);
+                if (!response.ok) throw new Error(`Status ${response.status}`);
+
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, "text/html");
+
+                const tags = new Set();
+                doc.querySelectorAll(
+                    ".tag-type-general a, .tag-type-character a, .tag-type-copyright a, " +
+                    ".tag-type-artist a, .tag-type-metadata a, .search-tag a, .tag a"
+                ).forEach(a => {
+                    let t = a.textContent.trim();
+                    if (t) {
+                        t = t.replace(/_/g, " ");
+                        tags.add(t);
+                    }
+                });
+
+                const tagsText = Array.from(tags).join(", ") || "(sin tags visibles)";
+                allResults.push(`${url}  (${site})\n${tagsText}\n/////`);
+            } catch (err) {
+                allResults.push(`[Error en ${url} (${site})]: ${err.message}\n/////`);
+            }
+        }
+
+        const finalText = allResults.join("\n\n");
+        document.getElementById("tagsArea").value = finalText.trim() || "No se procesó ningún post válido.";
+
+        document.getElementById("container").style.display = "block";
+        status.innerText = "¡Listo! Revisa y edita antes de guardar.";
+    }
+
+    function saveAllTags() {
+        const text = document.getElementById("tagsArea").value.trim();
+        if (!text) {
+            alert("No hay tags para guardar");
             return;
         }
 
-        const blob = new Blob([tags], { type: "text/plain" });
+        const blob = new Blob([text], { type: "text/plain" });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = `${baseName}.txt`;
+        link.download = "tags_multiples.txt";
         link.click();
     }
     </script>
