@@ -86,7 +86,8 @@
                 continue;
             }
 
-            const proxyURL = "https://corsproxy.io/?" + encodeURIComponent(url);
+            // Proxy alternativo más estable para Danbooru
+            const proxyURL = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
 
             try {
                 const response = await fetch(proxyURL);
@@ -96,19 +97,23 @@
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, "text/html");
 
+                // Selectores ampliados para ambos sitios
                 const tags = new Set();
                 doc.querySelectorAll(
-                    ".tag-type-general a, .tag-type-character a, .tag-type-copyright a, " +
-                    ".tag-type-artist a, .tag-type-metadata a, .search-tag a, .tag a"
+                    '[class*="tag-type-"] a, ' +
+                    '.tag a, .post-tag a, ' +
+                    '.search-tag a, .tag-list a, ' +
+                    'a[href^="/posts?tags="], ' +
+                    'a[href^="/wiki_pages/"]'
                 ).forEach(a => {
                     let t = a.textContent.trim();
-                    if (t) {
+                    if (t && t.length > 1) {  // evita tags muy cortos o vacíos
                         t = t.replace(/_/g, " ");
                         tags.add(t);
                     }
                 });
 
-                const tagsText = Array.from(tags).join(", ") || "(sin tags visibles)";
+                const tagsText = Array.from(tags).join(", ") || "(sin tags visibles - revisa si el post existe)";
                 allResults.push(`${url}  (${site})\n${tagsText}\n/////`);
             } catch (err) {
                 allResults.push(`[Error en ${url} (${site})]: ${err.message}\n/////`);
