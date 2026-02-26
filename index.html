@@ -5,19 +5,8 @@
     <title>Booru Tag Extractor - Multi Posts</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background: #111; color: #eee; }
-        .container { margin-top: 20px; max-width: 900px; margin-bottom: 80px; } /* ← margen inferior grande para que no pegue al fondo */
-        textarea { 
-            width: 100%; 
-            height: 450px; 
-            background: #222; 
-            color: #eee; 
-            border: 1px solid #444; 
-            padding: 12px; 
-            font-size: 15px; 
-            line-height: 1.6; 
-            resize: vertical; 
-            margin-bottom: 40px; /* ← margen extra debajo de la textarea */
-        }
+        .container { margin-top: 20px; max-width: 900px; }
+        textarea { width: 100%; height: 450px; background: #222; color: #eee; border: 1px solid #444; padding: 12px; font-size: 15px; line-height: 1.6; resize: vertical; }
         button { margin: 12px 10px 0 0; padding: 10px 22px; cursor: pointer; background: #555; color: white; border: none; border-radius: 4px; font-size: 15px; }
         button:hover { background: #777; }
         .url-group { display: flex; align-items: center; margin: 10px 0; gap: 10px; flex-wrap: wrap; }
@@ -97,6 +86,7 @@
                 continue;
             }
 
+            // Proxy alternativo más estable para Danbooru
             const proxyURL = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
 
             try {
@@ -107,18 +97,23 @@
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, "text/html");
 
+                // Selectores ampliados para ambos sitios
                 const tags = new Set();
                 doc.querySelectorAll(
-                    '[class*="tag-type-"] a, .tag a, .post-tag a, .search-tag a, .tag-list a, a[href^="/posts?tags="], a[href^="/wiki_pages/"]'
+                    '[class*="tag-type-"] a, ' +
+                    '.tag a, .post-tag a, ' +
+                    '.search-tag a, .tag-list a, ' +
+                    'a[href^="/posts?tags="], ' +
+                    'a[href^="/wiki_pages/"]'
                 ).forEach(a => {
                     let t = a.textContent.trim();
-                    if (t && t.length > 1) {
+                    if (t && t.length > 1) {  // evita tags muy cortos o vacíos
                         t = t.replace(/_/g, " ");
                         tags.add(t);
                     }
                 });
 
-                const tagsText = Array.from(tags).join(", ") || "(sin tags visibles)";
+                const tagsText = Array.from(tags).join(", ") || "(sin tags visibles - revisa si el post existe)";
                 allResults.push(`${url}  (${site})\n${tagsText}\n/////`);
             } catch (err) {
                 allResults.push(`[Error en ${url} (${site})]: ${err.message}\n/////`);
